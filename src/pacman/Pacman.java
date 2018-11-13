@@ -97,17 +97,10 @@ public class Pacman extends JPanel {
         modeStart = System.currentTimeMillis();
 
         initializeVariables();
-        addKeyListener(new ControlListener());
-        start();
+     
     }
 
-    /**
-     * Start the other threads
-     */
-    public void start() {
-        new Thread(new GameLogic()).start();
-    }
-
+    
     /**
      * Initalizes pacman and ghosts start locations
      */
@@ -159,34 +152,7 @@ public class Pacman extends JPanel {
         ghostModeStart = System.currentTimeMillis();
     }
 
-    /**
-     * Returns a byte representing the item that the parameter's item will hit
-     * based on the parameter item's direction
-     */
-    private byte getItemInNextMove(final PacmanItem movingItem, final PacmanItem.Direction theDirection) {
-        try {
-            switch (theDirection) {
-                case UP:
-                    return board[movingItem.getY() - 1][movingItem.getX()];
-
-                case DOWN:
-                    return board[movingItem.getY() + 1][movingItem.getX()];
-
-                case LEFT:
-                    return board[movingItem.getY()][movingItem.getX() - 1];
-
-                case RIGHT:
-                    return board[movingItem.getY()][movingItem.getX() + 1];
-
-                default:
-                    return Byte.MAX_VALUE;
-                    
-            }
-        } catch (Exception e) {
-            return OUT;
-        }
-    }
-
+   
     /**
      * Return byte of item in that Point
      * @param thePoint
@@ -196,101 +162,11 @@ public class Pacman extends JPanel {
         return board[(byte) thePoint.getY()][(byte) thePoint.getX()];
     }
 
-    /**
-     * Moves the item parameter based on the direction parameter
-     * @param theItem
-     * @param theDirection
-     */
-    public void moveItem(final ThePacman theItem, final PacmanItem.Direction theDirection) {
-        controlTouch = false;
+    
 
-        if (theDirection == null) {
-            return;
-        }
-        theItem.setFacingDirection(theDirection);
-        final byte itemInNextDirection = getItemInNextMove(pacman, theDirection);
-        
-        System.out.println(getBoard());
+   
 
-        if (itemInNextDirection == OUT) {
-            return;
-        }
-
-        if (itemInNextDirection == GHOST) {
-            if (isFrightened()) {
-                eatGhost(theDirection);
-            } else {
-                hitGhost();
-            }
-            return;
-        }
-
-        if (itemInNextDirection == DOT) {
-            pacmanScore += 10;
-        }
-
-        if (itemInNextDirection != WALL) {
-            board[pacman.getY()][pacman.getX()] = FREE;
-            pacman.move(theDirection);
-        }
-
-        if (itemInNextDirection == ENERGIZER) {
-            hitEnergizerAt = System.currentTimeMillis();
-            pacmanScore += 100;
-            gameMode = Mode.FRIGHTENED;
-            modeStart = System.currentTimeMillis();
-        }
-
-        board[pacman.getY()][pacman.getX()] = PACMAN;
-
-        updateLabels();
-    }
-
-    /**
-     * Eats the Ghost if it is not frightened mode
-     */
-    private void eatGhost() {
-        if (gameMode != Mode.FRIGHTENED) {
-            hitGhost();
-            return;
-        }
-
-        final Point pacmanOnGhostPoint = pacman.getPoint();
-        for (TheGhost theGhost : theGhosts) {
-            if (theGhost.getPoint().equals(pacmanOnGhostPoint)) {
-                System.out.println("EATEN:\t" + theGhost.toString());
-                pacmanScore += 200;
-                theGhost.returnToStartPosition();
-                updateBoard(theGhost.getPoint(), FREE);
-                updateBoard(theGhost.getPoint(), GHOST);
-                ghostRespawn(theGhost);
-            }
-        }
-    }
-
-    /**
-     * If Pacman eats a ghost on frightened mode
-     */
-    private void eatGhost(final PacmanItem.Direction theDirection) {
-        final Point pacmanOriginalPoint = pacman.getPoint();
-        pacman.move(theDirection);
-        final Point pacmanOnGhostPoint = pacman.getPoint();
-
-        for (byte i = 0; i < theGhosts.length; i++) {
-            if (theGhosts[i].getPoint().equals(pacmanOnGhostPoint)) {
-                pacmanScore += 200;
-                ghostRespawn(theGhosts[i]);
-                theGhosts[i].returnToStartPosition();
-            }
-        }
-
-        // Make Pacman's old location free
-        updateBoard(pacmanOriginalPoint, FREE);
-
-        // Set Pacman's new location
-        updateBoard(pacmanOnGhostPoint, PACMAN);
-    }
-
+    
     /**
      * Paint method, called by repaint()
      */
@@ -302,69 +178,7 @@ public class Pacman extends JPanel {
         drawSquares();
     }
 
-    /**
-     * Thread that has most of the game logic Handles updated ghosts' board and
-     * BFA and movements
-     */
-    private class GameLogic implements Runnable {
-
-        @Override
-        public void run() {
-            while (true) {
-                eatGhost();
-                hitGhost();
-                if (getItemInNextMove(pacman, pacman.getDesiredDirection()) != WALL) {
-                    pacman.setFacingDirection(pacman.getDesiredDirection());
-                }
-                moveItem(pacman, pacman.getFacingDirection());
-                eatGhost();
-                hitGhost();
-                final int modeTime = (int) ((System.currentTimeMillis() - modeStart) / 1000);
-
-                switch (gameMode) {
-                    case FRIGHTENED:
-                        if (modeTime > TIME_FRIGHTENED) {
-                            gameMode = Mode.CHASE;
-                            modeStart = System.currentTimeMillis();
-                        }
-                        break;
-
-                    case CHASE:
-                        if (modeTime > TIME_CHASE) {
-                            gameMode = Mode.SCATTER;
-                            modeStart = System.currentTimeMillis();
-                        }
-                        break;
-
-                    case SCATTER:
-                        if (modeTime > TIME_SCATTER) {
-                            gameMode = Mode.CHASE;
-                            modeStart = System.currentTimeMillis();
-                        }
-                        break;
-
-                    default:
-                        break;
-                }
-
-                for (TheGhost theGhost : theGhosts) {
-                    if (theGhost.isReleased()) {
-                        theGhost.updateBoard(board);
-                        setValue(theGhost.getPoint(), (byte) (getItemAtPoint(theGhost.getPoint()) & (~GHOST)));
-                        theGhost.move(theGhost.getPoint(), gameMode);
-                        updateBoard(theGhost.getPoint(), GHOST);
-                    }
-                }
-                eatGhost();
-                hitGhost();
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                }
-                repaint();
-            }
-        }
-    };
+   
 
     /**
      * Sets the value of the point to the value in the board[][]
